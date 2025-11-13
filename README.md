@@ -15,4 +15,8 @@ This project focuses on creating a portable environmental data logger implemente
 
 ## List of hardware components
 
-TO-DO: **add here**
+TO-DO: **add here**  list of sensors and other electronic components intended for use, include justification for our component choices
+
+## Software design
+
+TO-DO: **add here** system-level block diagrams, flowcharts, or pseudocode showing the planned software logic and control flow
