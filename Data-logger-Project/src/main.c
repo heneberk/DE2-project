@@ -1,145 +1,79 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/delay.h>
 #include <stdio.h>
+#include "uart.h"       // Fleury UART
+#include "twi.h"        // Fryza TWI
+#include "bme280.h"
+#include "LightSensor.h"
 #include <stdlib.h>
-#include <string.h>
 
-#include <uart.h>      // Fleury UART
-#include <twi.h>       // Fryza TWI (I2C)
-#include <gpio.h>      // GPIO library for AVR-GCC
-#include "timer.h"     // Fryza Timer utilities (Timer0/Timer2 macros)
-#include "bme280.h"    // BME280 driver (T, P, H)
-#include "encoder.h"   // KY-040 encoder + LCD UI
-#include "sdlog.h"     // SD card logging helpers
+#define SAMPLE_PERIOD_MS 1000UL
 
-#ifndef F_CPU
-# define F_CPU 16000000UL   // Arduino Uno, ATmega328P, 16 MHz
-#endif
-
-#define SAMPLE_PERIOD_MS 1000UL   // Sensor sampling interval
-
-/* ----------------------------------------------------
-   Global software time (milliseconds, from Timer0)
-   ---------------------------------------------------- */
 volatile uint32_t g_millis = 0;
+ISR(TIMER0_OVF_vect) { g_millis++; }
+static uint32_t millis(void) { uint32_t t; uint8_t sreg=SREG; cli(); t=g_millis; SREG=sreg; return t; }
 
-/* Timer0 overflow ISR: increments millisecond counter */
-ISR(TIMER0_OVF_vect)
-{
-    g_millis++;    // called every ~1 ms
+// Print line with Fleury UART
+static void uart_println(const char *s) { uart_puts(s); uart_puts("\r\n"); }
+
+void i2c_scan(void) {
+    uart_println("Scanning I2C...");
+    for(uint8_t addr=1; addr<127; addr++) {
+        if(twi_test_address(addr)==0) {
+            char buf[32];
+            snprintf(buf,sizeof(buf),"Found: 0x%02X", addr);
+            uart_println(buf);
+        }
+    }
+    uart_println("Scan done!");
 }
 
-/* Thread-safe access to g_millis */
-static uint32_t millis(void)
-{
-    uint32_t t;
-    uint8_t sreg = SREG;
-    cli();
-    t = g_millis;
-    SREG = sreg;
-    return t;
-}
-
-/* Simple UART "println" helper */
-static void uart_println(const char *s)
-{
-    uart_puts(s);
-    uart_puts("\r\n");
-}
-
-/* ----------------------------------------------------
-   Main application (BME280 + LCD + SD logger)
-   ---------------------------------------------------- */
-int main(void)
-{
-    /* Initialize UART (9600 baud) */
-    uart_init(UART_BAUD_SELECT(9600, F_CPU));
-
-    /* Initialize I2C/TWI for BME280 and potentially other sensors */
+int main(void) {
+    uart_init(UART_BAUD_SELECT(9600,F_CPU));
     twi_init();
 
-    /* Timer0: 1 ms overflow, used for millis() */
-    tim0_ovf_1ms();
-    tim0_ovf_enable();
-
-    /* Initialize LCD+encoder UI and its Timer2-based refresh mechanism */
-    encoder_init();        // Configure LCD and encoder pins
-    encoder_timer_init();  // Configure Timer2 interrupt for periodic UI refresh
-
-    /* Enable global interrupts */
+    // Timer0: 1 ms overflow
+    TIMSK0 = (1<<TOIE0);
+    TCCR0B = (1<<CS01) | (1<<CS00);
     sei();
 
-    uart_println("BME280 data logger starting...");
+    i2c_scan();
 
-    /* Optional: check presence of BME280 on I2C bus */
-    if (twi_test_address(BME280_I2C_ADDR) != 0)
-    {
-        uart_println("ERROR: BME280 not found!");
-    }
-
-    /* Initialize BME280 calibration and measurement settings */
+    uart_println("Initializing BME280...");
     bme280_init();
+    _delay_ms(10);
     uart_println("BME280 initialized.");
 
-    float T, P, H;
-    char bufT[16], bufP[16], bufH[16];
-    char line[64];
+    // Light Sensor
+    lightSensor_init(3);
+    lightSensor_setCalibration(10,750);
+    uart_println("Light sensor initialized.");
 
-    /* Time of last measurement */
-    uint32_t last_sample = millis();
+    float T,P,H;
+    uint16_t rawLight, calLight;
+    char bufT[8], bufP[10], bufH[8], line[128];
 
-    /* Force initial UI redraw */
-    encoder_request_redraw();
+    uint32_t last_sample=millis();
 
-    while (1)
-    {
-        /* Poll encoder frequently so the UI feels responsive */
-        encoder_poll();
-
-        /* Handle encoder button: toggle SD logging on/off */
-        if (flag_sd_toggle)
-        {
-            flag_sd_toggle = 0;
-
-            if (sd_logging)
-                sd_log_stop();
-            else
-                sd_log_start();
-        }
-
-        /* Periodic measurement & logging */
+    while(1) {
         uint32_t now = millis();
-        if ((now - last_sample) >= SAMPLE_PERIOD_MS)
-        {
+        if(now - last_sample >= SAMPLE_PERIOD_MS) {
             last_sample += SAMPLE_PERIOD_MS;
 
-            /* Read sensor (compensated values) */
-            bme280_read(&T, &P, &H);
-
-            /* Convert float -> string (AVR libc has no float printf) */
-            dtostrf(T, 6, 2, bufT);
-            dtostrf(P, 7, 2, bufP);
-            dtostrf(H, 6, 2, bufH);
-
-            /* Format line and send via UART */
-            snprintf(line, sizeof(line),
-                     "T=%s C, P=%s hPa, H=%s %%", bufT, bufP, bufH);
+            // BME280
+            bme280_read(&T,&P,&H);
+            dtostrf(T,6,2,bufT);
+            dtostrf(P,7,2,bufP);
+            dtostrf(H,6,2,bufH);
+            snprintf(line,sizeof(line),"BME280 -> T=%s C, P=%s hPa, H=%s %%",bufT,bufP,bufH);
             uart_println(line);
 
-            /* Push new values into UI module and request redraw */
-            encoder_set_values(T, P, H);
-            encoder_request_redraw();
-
-            /* If logging is active, append current measurement */
-            if (sd_logging)
-                sd_log_append_line(T, P, H);
+            // Light Sensor
+            rawLight = lightSensor_readRaw();
+            calLight = lightSensor_readCalibrated();
+            snprintf(line,sizeof(line),"Light -> Raw=%u | SVETLo=%u%%",rawLight,calLight);
+            uart_println(line);
         }
-
-        /* Perform LCD redraw if requested by encoder module/Timer2 ISR */
-        encoder_draw_if_needed();
-
-        /* No blocking delays here: loop stays responsive */
     }
-
-    return 0;
 }
