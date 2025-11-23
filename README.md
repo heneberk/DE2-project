@@ -15,7 +15,23 @@ This project focuses on creating a portable environmental data logger implemente
 
 ## List of hardware components
 
-TO-DO: **add here**  list of sensors and other electronic components intended for use, include justification for our component choices
+* BME280 module
+  - air pressure, temperature and humidity sensor combined within one small module
+
+* Fotoresistor
+  - simple light sensor
+ 
+* RTC module DS3231
+  - accurate and low-cost solution for keeping time when the data logger is powered off
+  
+* I2C LCD Display 1602
+  - indication of current measurements without the need of computer
+
+* Rotary encoder KY040
+  - provides rotary selection and a clickable button in one simple module
+
+* SD Card module
+  - used for connecting SD card
 
 ## Software design
 
