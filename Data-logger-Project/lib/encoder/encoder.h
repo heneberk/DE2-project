@@ -26,13 +26,13 @@
  */
 
 #ifndef ENC_SW
-#define ENC_SW   PC0
+#define ENC_SW   PC3
 #endif
 #ifndef ENC_DT
-#define ENC_DT   PC1
+#define ENC_DT   PC4
 #endif
 #ifndef ENC_CLK
-#define ENC_CLK  PC2
+#define ENC_CLK  PC5
 #endif
 
 #ifndef ENC_PORT_REG

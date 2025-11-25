@@ -22,6 +22,7 @@ static uint8_t lastStateCLK = 0;
 
 /* Global variables for display control */
 /* 0=Temp, 1=Pressure, 2=Humidity, 3=Light */
+/* Default is 0 (Temperature) */
 volatile uint8_t lcdValue = 0;      
 volatile uint8_t flag_update_lcd = 0; // 1 = Please redraw display
 
@@ -50,7 +51,8 @@ void logger_encoder_init(void)
     // Enable internal pull-up resistors (1)
     ENC_PORT_REG |=  ((1 << ENC_CLK) | (1 << ENC_DT) | (1 << ENC_SW));
 
-    // Read initial state
+    // Read initial state to prevent false trigger on startup
+    // We read it multiple times or just once to be sure
     lastStateCLK = (ENC_PIN_REG & (1 << ENC_CLK)) ? 1 : 0;
 }
 
@@ -60,17 +62,19 @@ void logger_encoder_poll(void)
     uint8_t currentStateCLK = (ENC_PIN_REG & (1 << ENC_CLK)) ? 1 : 0;
 
     // Detect CLK state change (rotation)
-    if (currentStateCLK != lastStateCLK && currentStateCLK == 1) {
-        // If state changed to 1, check DT pin
+    // We only react to the Falling Edge (1 -> 0) or Rising Edge (0 -> 1)
+    // Typically for KY-040, checking when CLK goes LOW is reliable.
+    if (currentStateCLK != lastStateCLK && currentStateCLK == 0) {
+        // If CLK went LOW, check DT pin
         uint8_t dt = (ENC_PIN_REG & (1 << ENC_DT)) ? 1 : 0;
         
         if (dt != currentStateCLK) {
-            // Direction CW
+            // Direction CW (Clockwise) -> 0, 1, 2, 3, 0...
             lcdValue++;
             if (lcdValue > 3) lcdValue = 0;
         }
         else {
-            // Direction CCW
+            // Direction CCW (Counter-Clockwise) -> 0, 3, 2, 1, 0...
             if (lcdValue == 0) lcdValue = 3;
             else lcdValue--;
         }
@@ -87,7 +91,7 @@ void logger_encoder_poll(void)
     }
 }
 
-/* Read time from RTC DS3231 */
+/* Read time from RTC DS3231 (Original I2C Implementation) */
 #define RTC_ADR     0x68
 #define RTC_SEC_MEM 0x00
 
@@ -127,10 +131,10 @@ void logger_display_draw(void)
 
     // Display based on selection
     switch (lcdValue) {
-        case 0: lcd_i2c_puts("TEMP   "); break;
-        case 1: lcd_i2c_puts("PRESS  "); break;
-        case 2: lcd_i2c_puts("HUMID  "); break;
-        case 3: lcd_i2c_puts("LIGHT  "); break;
+        case 0: lcd_i2c_puts("TEMP    "); break;
+        case 1: lcd_i2c_puts("PRESS   "); break;
+        case 2: lcd_i2c_puts("HUMID   "); break;
+        case 3: lcd_i2c_puts("LIGHT   "); break;
     }
     
     // Print SD indicator and time on the rest of the line
@@ -139,6 +143,10 @@ void logger_display_draw(void)
 
     // --- Line 2: Value ---
     lcd_i2c_gotoxy(0,1);
+    
+    // Clear line with spaces to remove artifacts from previous longer strings
+    // lcd_i2c_puts("                ");
+    // lcd_i2c_gotoxy(0,1);
 
     char valStr[16];
     
@@ -147,29 +155,29 @@ void logger_display_draw(void)
         case 0: // Temperature
             dtostrf(g_T, 6, 1, valStr); // float format
             lcd_i2c_puts(valStr); 
-            lcd_i2c_puts("\xDF""C   "); // Degree symbol and C
+            lcd_i2c_puts(" \xDF""C   "); // Added spaces to clear line
             break;
 
         case 1: // Pressure
             dtostrf(g_P, 7, 1, valStr);
             lcd_i2c_puts(valStr); 
-            lcd_i2c_puts(" hPa");
+            lcd_i2c_puts(" hPa  ");
             break;
 
         case 2: // Humidity
             dtostrf(g_H, 6, 1, valStr);
             lcd_i2c_puts(valStr); 
-            lcd_i2c_puts(" %  ");
+            lcd_i2c_puts(" %    ");
             break;
 
         case 3: // Light
             sprintf(valStr, "%u", g_Light);
             lcd_i2c_puts(valStr);
-            lcd_i2c_puts(" %  ");
+            lcd_i2c_puts(" %      "); // More spaces for shorter number
             break;
 
         default:
-            lcd_i2c_puts("Error   ");
+            lcd_i2c_puts("Error           ");
             break;
     }
 }
