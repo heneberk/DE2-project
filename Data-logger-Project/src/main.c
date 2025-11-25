@@ -119,10 +119,10 @@ int main(void) {
     // Timing variables
     uint32_t last_sample_time = 0;
     uint16_t calLight;
-    char line_buffer[64];
+    char line_buffer[80];
     float temp, press, hum;
 
-    // Initial time read from RTC
+    // Initial time read (dummy read or RTC if present)
     logger_rtc_read_time();
 
     /* === Main Infinite Loop === */
@@ -158,11 +158,14 @@ int main(void) {
             char bufT[10], bufP[10], bufH[10];
             dtostrf(temp, 4, 1, bufT);
             dtostrf(press, 6, 1, bufP);
-            dtostrf(hum, 6, 2, bufH);
-            sprintf(line_buffer, "T: %s C, P: %s hPa, H: %s %% , L: %u %%\r\n", bufT, bufP, bufH, calLight);
+            dtostrf(hum, 4, 1, bufH);
+            
+            sprintf(line_buffer, "T: %s C, P: %s hPa, H: %s %%, L: %u %%\r\n", bufT, bufP, bufH, calLight);
             uart_puts(line_buffer);
             
-            /* E) Read time */
+            /* E) Read/Update time */
+            // Since we don't have RTC working yet, let's just read what we have
+            // (or rely on the internal simulation if it was there)
             logger_rtc_read_time();
 
             /* F) SD card logging (if active) */

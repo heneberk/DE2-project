@@ -15,7 +15,7 @@ typedef struct {
 extern volatile float g_T;
 extern volatile float g_P;
 extern volatile float g_H;
-extern volatile uint16_t g_Light; /* Added missing declaration for Light */
+extern volatile uint16_t g_Light;
 extern volatile rtc_time_t g_time;
 
 /* Control variables (defined in loggerControl.c) */
