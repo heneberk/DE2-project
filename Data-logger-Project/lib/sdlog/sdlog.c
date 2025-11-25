@@ -1,8 +1,6 @@
 /*
- *
  * Buffered CSV logging to SD card.
  * - Uses weak low-level wrappers: sdcard_init/open_append/write/close
- *
  */
 
 #include "sdlog.h"
@@ -56,13 +54,15 @@ int sd_log_init(void)
 }
 
 /* Append CSV line to RAM buffer and flush to SD if conditions met */
-void sd_log_append_line(float T, float P, float H)
+/* Now includes Light (L) */
+void sd_log_append_line(float T, float P, float H, uint16_t L)
 {
     char line[64];
     char ts[24];
 
     format_timestamp(ts, sizeof(ts));
-    int n = snprintf(line, sizeof(line), "%s,%.2f,%.2f,%.2f\n", ts, T, P, H);
+    // Added %.0u for light (integer percentage)
+    int n = snprintf(line, sizeof(line), "%s,%.2f,%.2f,%.2f,%u\n", ts, T, P, H, L);
     if (n <= 0) return;
 
     size_t ln = (size_t)n;
@@ -122,7 +122,8 @@ int sd_log_start(void)
         return -2;
     }
 
-    const char *hdr = "time,temperature,pressure,humidity\n";
+    // Updated header to include Light
+    const char *hdr = "time,temperature,pressure,humidity,light\n";
     (void)sdcard_write(hdr, strlen(hdr));
 
     sd_buf_pos = 0;
