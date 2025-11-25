@@ -8,13 +8,13 @@
 /*
  * SD logging (CSV) public API
  *
- * - Buffered CSV logging: timestamp,temperature,pressure,humidity\n
+ * - Buffered CSV logging: timestamp,temperature,pressure,humidity,light\n
  * - Encoder short-press toggles logging via a shared flag: flag_sd_toggle
  *
  * Configuration macros (override before include if needed):
- *   SD_BUFFER_SIZE      - RAM buffer size in bytes (default 256)
- *   SD_FLUSH_THRESHOLD  - flush when buffer >= this many bytes (default 128)
- *   SD_FILENAME         - file name to append to (default "LOG.TXT")
+ * SD_BUFFER_SIZE      - RAM buffer size in bytes (default 256)
+ * SD_FLUSH_THRESHOLD  - flush when buffer >= this many bytes (default 128)
+ * SD_FILENAME         - file name to append to (default "LOG.TXT")
  */
 
 #ifndef SD_BUFFER_SIZE
@@ -49,7 +49,8 @@ int sd_log_start(void);
 void sd_log_stop(void);
 
 /* Append a single measurement line (buffered). Safe to call from main context only. */
-void sd_log_append_line(float T, float P, float H);
+/* Updated prototype to include 'light' parameter */
+void sd_log_append_line(float T, float P, float H, uint16_t L);
 
 /* --- Low-level SD wrapper prototypes (implement with SdFat, FatFs, ...) --- */
 /* These have weak implementations in sdlog.c — override them in your SD module. */

@@ -1,191 +1,195 @@
+/***********************************************************************
+ * Main file of the Data Logger project
+ * * Functions:
+ * - Peripherals initialization (UART, I2C, SD card, Sensors, Timer)
+ * - Main loop (Super-loop)
+ * - Task scheduling using system time (millis)
+ * * NON-BLOCKING DESIGN:
+ * The main loop does not use _delay_ms(). Instead, elapsed time is
+ * checked using Timer 0. This ensures immediate response to
+ * encoder rotation.
+ **********************************************************************/
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <util/delay.h>
+#include <util/delay.h> // Used only for short delays during initialization
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "uart.h"       // Fleury UART
-#include "twi.h"        // Fryza TWI
+/* Custom libraries */
+#include "uart.h"       
+#include "twi.h"        
 #include "bme280.h"
 #include "LightSensor.h"
 #include "loggerControl.h"
 #include "sdlog.h"
+#include "lcd_i2c.h"    /* Using the uploaded I2C LCD library */
+#include "timer.h"
 
-#include "lcd.h"        // HD44780 LCD library (assumed present)
-#include "timer.h"      // for tim2_ovf_16ms(), tim2_ovf_enable()
-
+/* Sampling period definition (e.g., 1000 ms = 1 second) */
 #define SAMPLE_PERIOD_MS 1000UL
 
-/* ---------------------- millis (Timer0) ------------------- */
-volatile uint32_t g_millis = 0;
-ISR(TIMER0_OVF_vect) { g_millis++; }
+/* --- Global variables for data sharing --- */
+/* These variables are externally visible in loggerControl.c */
+volatile float g_T = 0.0f;
+volatile float g_P = 0.0f;
+volatile float g_H = 0.0f;
+volatile uint16_t g_Light = 0; /* Light intensity */
+volatile rtc_time_t g_time = {0, 0, 0};
 
+/* SD card flag (controlled by encoder) */
+extern volatile uint8_t flag_sd_toggle;
+
+/* --- SYSTEM TIME (Millis) --- */
+/* Millisecond counter since program start */
+volatile uint32_t g_millis = 0;
+
+/* Timer 0 interrupt every 1 ms */
+ISR(TIMER0_OVF_vect) {
+    g_millis++;
+}
+
+/* Function to get current time (atomically) */
 static uint32_t millis(void) { 
     uint32_t t; 
-    uint8_t sreg=SREG; 
-    cli(); 
-    t=g_millis; 
-    SREG=sreg; 
+    uint8_t sreg = SREG; 
+    cli(); // Disable interrupts for atomic reading of 32-bit number
+    t = g_millis; 
+    SREG = sreg; // Restore interrupts
     return t; 
 }
 
-/* Print line with Fleury UART */
-static void uart_println(const char *s) { 
-    uart_puts(s); 
-    uart_puts("\r\n"); 
+/* Timer 0 initialization for system time (1 ms) */
+void timer0_init_system_tick(void) {
+    // Timer 0 setup: Normal mode, Prescaler 64
+    // At 16 MHz: 16 000 000 / 64 = 250 000 ticks/s
+    // 250 ticks -> 1 ms (approximately)
+    // Using timer.h library macros:
+    tim0_ovf_1ms(); 
+    tim0_ovf_enable();
 }
 
-/* I2C debug scan */
+/* Helper function for I2C scan (optional, for debug) */
 void i2c_scan(void) {
-    uart_println("Scanning I2C...");
-    for(uint8_t addr=1; addr<127; addr++) {
-        if(twi_test_address(addr)==0) {
+    uart_puts("Scanning I2C bus...\r\n");
+    for(uint8_t addr = 1; addr < 127; addr++) {
+        if(twi_test_address(addr) == 0) {
             char buf[32];
-            snprintf(buf,sizeof(buf),"Found: 0x%02X", addr);
-            uart_println(buf);
+            sprintf(buf, "Device found: 0x%02X\r\n", addr);
+            uart_puts(buf);
         }
     }
-    uart_println("Scan done!");
+    uart_puts("Scan done.\r\n");
 }
-
-/* ---------------- DISPLAY STATE AND SHARED DATA ---------------- */
-
-/* Display selection */
-volatile uint8_t lcdValue = 0;
-volatile uint8_t flag_update_lcd = 0;
-
-/* Shared sensor values */
-volatile float g_T = 0.0f, g_P = 0.0f, g_H = 0.0f;
-
-/* Time struct (shared with loggerControl) */
-volatile rtc_time_t g_time = {0,0,0};
-
-/* --- Timer2 ISR: accumulate ~1s and set flag_update_lcd --- */
-ISR(TIMER2_OVF_vect)
-{
-    static uint8_t n_ovfs = 0;
-    n_ovfs++;
-    if (n_ovfs >= 62) { /* 62 * ~16 ms == ~1 s */
-        n_ovfs = 0;
-        flag_update_lcd = 1;
-    }
-}
-
-static void timer2_init_for_display_1s(void)
-{
-    tim2_ovf_16ms();
-    tim2_ovf_enable();
-}
-
-/* ---------------- SD log ---------------- */
-extern volatile uint8_t flag_sd_toggle;
-
-static uint8_t last_s = 0;    // compare with g_time in loop
 
 /* === Main function === */
 int main(void) {
-    uart_init(UART_BAUD_SELECT(9600,F_CPU));
+    // -- 1. Hardware Initialization --
+    
+    // UART for debug (9600 baud)
+    uart_init(UART_BAUD_SELECT(9600, F_CPU));
+    
+    // I2C bus
     twi_init();
+    
+    // SD Card
     sd_log_init();
 
-    /* Timer0: 1 ms overflow */
-    TIMSK0 = (1<<TOIE0);
-    TCCR0B = (1<<CS01) | (1<<CS00);
+    // Timer 0 for millis()
+    timer0_init_system_tick();
+    
+    // Enable global interrupts
     sei();
 
+    uart_puts("--- System Start ---\r\n");
     i2c_scan();
 
-    uart_println("Initializing BME280...");
+    // Sensor Initialization
+    uart_puts("Init BME280...\r\n");
     bme280_init();
-    _delay_ms(10);
-    uart_println("BME280 initialized.");
+    
+    uart_puts("Init Light Sensor...\r\n");
+    lightSensor_init(3); // Analog pin A3
+    lightSensor_setCalibration(10, 750);
 
-    /* Light Sensor */
-    lightSensor_init(3);
-    lightSensor_setCalibration(10,750);
-    uart_println("Light sensor initialized.");
-
-    /* Initialize LCD/Encoder/Timer2 for display */
+    // Control Initialization (LCD + Encoder)
     logger_display_init();
     logger_encoder_init();
-    timer2_init_for_display_1s();
 
-    /* Buffers */
-    float T,P,H;
-    uint16_t rawLight, calLight;
-    char bufT[8], bufP[10], bufH[8], line[128];
+    // Timing variables
+    uint32_t last_sample_time = 0;
+    uint16_t calLight;
+    char line_buffer[64];
+    float temp, press, hum;
 
-    uint32_t last_sample = millis();
+    // Initial time read from RTC
+    logger_rtc_read_time();
 
+    /* === Main Infinite Loop === */
     while(1) {
-        uint32_t now = millis();
+        uint32_t current_time = millis();
 
-        /* keep polling encoder often */
+        // -- TASK 1: Encoder Handling (Must be called as often as possible) --
         logger_encoder_poll();
 
-        if(now - last_sample >= SAMPLE_PERIOD_MS) {
-            last_sample += SAMPLE_PERIOD_MS;
+        // -- TASK 2: LCD Drawing --
+        // If encoder changed state (flag_update_lcd), redraw display IMMEDIATELY.
+        if (flag_update_lcd) {
+            logger_display_draw(); 
+        }
 
-            /* BME280 - keep original read and UART output exactly */
-            bme280_read(&T,&P,&H);
+        // -- TASK 3: Periodic measurement (every 1000 ms) --
+        if (current_time - last_sample_time >= SAMPLE_PERIOD_MS) {
+            last_sample_time = current_time;
 
-            /* update shared values used by LCD */
-            {
-                uint8_t sreg = SREG;
-                cli();
-                g_T = T;
-                g_P = P;
-                g_H = H;
-                SREG = sreg;
-            }
-
-            dtostrf(T,6,2,bufT);
-            dtostrf(P,7,2,bufP);
-            dtostrf(H,6,2,bufH);
-            snprintf(line,sizeof(line),"BME280 -> T=%s C, P=%s hPa, H=%s %%",bufT,bufP,bufH);
-            uart_println(line);
-
-            /* Light Sensor */
-            rawLight = lightSensor_readRaw();
+            /* A) Read sensors */
+            bme280_read(&temp, &press, &hum);
             calLight = lightSensor_readCalibrated();
-            snprintf(line,sizeof(line),"Light -> Raw=%u | SVETLo=%u%%",rawLight,calLight);
-            uart_println(line);
+            
+            /* B) Update global shared variables (atomically) */
+            uint8_t sreg = SREG; cli();
+            g_T = temp;
+            g_P = press;
+            g_H = hum;
+            g_Light = calLight;
+            SREG = sreg;
 
+            /* C) Debug output to UART */
+            char bufT[10], bufP[10], bufH[10];
+            dtostrf(temp, 4, 1, bufT);
+            dtostrf(press, 6, 1, bufP);
+            dtostrf(hum, 6, 2, bufH);
+            sprintf(line_buffer, "T: %s C, P: %s hPa, H: %s %% , L: %u %%\r\n", bufT, bufP, bufH, calLight);
+            uart_puts(line_buffer);
+            
+            /* E) Read time */
             logger_rtc_read_time();
 
-            /* request LCD update */
+            /* F) SD card logging (if active) */
+            static uint8_t last_logged_sec = 255;
+            if(sd_logging && g_time.s != last_logged_sec) {
+                sd_log_append_line(g_T, g_P, g_H, g_Light);
+                last_logged_sec = g_time.s;
+            }
+
+            /* G) Request LCD redraw with new data */
             flag_update_lcd = 1;
         }
 
-        /* Do LCD redraw if requested */
-        if (flag_update_lcd) {
-            flag_update_lcd = 0;
-            logger_display_draw();
-        }
-
-        /* SD measurements logging */
+        // -- TASK 4: SD Card Control (encoder button) --
         if(flag_sd_toggle) {
-            flag_sd_toggle = 0;
-
+            flag_sd_toggle = 0; // Reset request
             if(!sd_logging) {
+                uart_puts("SD: Start logging\r\n");
                 sd_log_start();
             } else {
+                uart_puts("SD: Stop logging\r\n");
                 sd_log_stop();
             }
+            // Update display (recording icon etc.)
+            flag_update_lcd = 1;
         }
-
-        if (g_time.s != last_s) {
-            last_s = g_time.s;
-
-            if(sd_logging) {
-                sd_log_append_line(g_T, g_P, g_H);
-            }
-        }
-
-        /* small delay to keep loop sane */
-        _delay_ms(2);
     }
 
-    /* never reached */
-    return 0;
+    return 0; // Never reached
 }
