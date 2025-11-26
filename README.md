@@ -35,9 +35,9 @@ This project focuses on creating a portable environmental data logger implemente
 
 ## Software design
 
-[x] system-level block diagrams
-[x] flowcharts
-[x] pseudocode showing the planned software logic and control flow
+- [x] system-level block diagrams
+- [x] flowcharts
+- [x] pseudocode showing the planned software logic and control flow
 
 ## References
 
