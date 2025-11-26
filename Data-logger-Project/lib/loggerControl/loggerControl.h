@@ -3,40 +3,54 @@
 
 #include <stdint.h>
 
-/* Time structure */
-typedef struct {
-    uint8_t h;
-    uint8_t m;
-    uint8_t s;
-} rtc_time_t;
+/*
+ * Logger control public header
+ *
+ * - Exposes display/encoder helpers used by main.c
+ * - Provides access to shared globals (temperature/pressure/humidity/light)
+ * - Declares rtc_time_t and extern g_time (hours/minutes/seconds)
+ *
+ * NOTE: This header assumes you have a DS1302 driver available (ds1302.h)
+ *       The loggerControl.c uses ds1302_read_time() to update g_time.
+ */
 
-/* Shared global variables (defined in main.c) */
-/* Using 'extern' to avoid double allocation */
+#include "ds1302.h"   /* DS1302 time type (ds1302_time_t) and API */
+
+/* Shared global sensor values (defined in main.c) */
 extern volatile float g_T;
 extern volatile float g_P;
 extern volatile float g_H;
 extern volatile uint16_t g_Light;
+
+/* Unified small RTC type used by the application (hours/minutes/seconds) */
+typedef struct {
+    uint8_t hh;
+    uint8_t mm;
+    uint8_t ss;
+} rtc_time_t;
+
+/* Shared global RTC time (defined in main.c) */
 extern volatile rtc_time_t g_time;
 
 /* Control variables (defined in loggerControl.c) */
-extern volatile uint8_t lcdValue;
-extern volatile uint8_t flag_update_lcd;
+extern volatile uint8_t lcdValue;       /* which value to display (0..3) */
+extern volatile uint8_t flag_update_lcd;/* set to request LCD redraw */
 
-/* Public Functions */
+/* Public API */
 
-// LCD initialization and intro print
+/* Initialize LCD and show intro */
 void logger_display_init(void);
 
-// Draw current state on LCD (call from main loop)
+/* Draw current screen (reads g_time and g_* globals) */
 void logger_display_draw(void);
 
-// Encoder pins initialization
+/* Initialize encoder pins and any local state */
 void logger_encoder_init(void);
 
-// Check encoder state (call frequently)
+/* Poll encoder — call frequently from main loop */
 void logger_encoder_poll(void);
 
-// Read time from RTC and store in g_time
+/* Read time from DS1302 and store into g_time (hh/mm/ss) */
 void logger_rtc_read_time(void);
 
-#endif
+#endif /* LOGGER_CONTROL_H */

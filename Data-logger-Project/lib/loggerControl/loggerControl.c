@@ -6,6 +6,7 @@
 #include "loggerControl.h"
 #include "lcd_i2c.h" /* Updated to use your I2C LCD library */
 #include "twi.h"
+#include "ds1302.h"
 #include "sdlog.h"   /* Access to sd_logging variable */
 
 /* Encoder Pins */
@@ -107,9 +108,9 @@ void logger_rtc_read_time(void)
 
     // Atomic write to global structure
     uint8_t sreg = SREG; cli();
-    g_time.h = hour;
-    g_time.m = min;
-    g_time.s = sec;
+    g_time.hh = hour;
+    g_time.mm = min;
+    g_time.ss = sec;
     SREG = sreg;
 }
 
@@ -127,14 +128,14 @@ void logger_display_draw(void)
     
     // Time formatting
     char timeStr[9];
-    snprintf(timeStr, 9, "%02d:%02d:%02d", g_time.h, g_time.m, g_time.s);
+    snprintf(timeStr, 9, "%02d:%02d:%02d", g_time.hh, g_time.mm, g_time.ss);
 
     // Display based on selection
     switch (lcdValue) {
-        case 0: lcd_i2c_puts("TEMP    "); break;
-        case 1: lcd_i2c_puts("PRESS   "); break;
-        case 2: lcd_i2c_puts("HUMID   "); break;
-        case 3: lcd_i2c_puts("LIGHT   "); break;
+        case 0: lcd_i2c_puts("TEMP   "); break;
+        case 1: lcd_i2c_puts("PRESS  "); break;
+        case 2: lcd_i2c_puts("HUMID  "); break;
+        case 3: lcd_i2c_puts("LIGHT  "); break;
     }
     
     // Print SD indicator and time on the rest of the line

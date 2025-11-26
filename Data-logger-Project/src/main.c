@@ -24,6 +24,7 @@
 #include "loggerControl.h"
 #include "sdlog.h"
 #include "lcd_i2c.h"    /* Using the uploaded I2C LCD library */
+#include "ds1302.h"   /* add at top of main.c includes */
 #include "timer.h"
 
 /* Sampling period definition (e.g., 1000 ms = 1 second) */
@@ -91,6 +92,39 @@ int main(void) {
     
     // I2C bus
     twi_init();
+
+    // Inicializace RTC
+    ds1302_init();
+    uart_puts("RTC (DS1302) init done.\r\n");
+
+    /*
+    // === RUN THIS ONCE TO SET TIME ===
+    ds1302_time_t t_setup;
+    t_setup.sec = 0;      // BIN values
+    t_setup.min = 15;
+    t_setup.hour = 14;
+    t_setup.date = 1;     // dummy (unused by logger)
+    t_setup.month = 1;    
+    t_setup.day = 1;
+    t_setup.year = 24;    // 2024
+    ds1302_set_time(&t_setup);
+    uart_puts("Time set!\r\n");
+    // =======================================
+    */
+
+    // První přečtení času z RTC
+    ds1302_time_t t_now;
+    ds1302_read_time(&t_now);
+
+    // BCD → BIN
+    g_time.hh = ((t_now.hour >> 4) * 10) + (t_now.hour & 0x0F);
+    g_time.mm = ((t_now.min  >> 4) * 10) + (t_now.min  & 0x0F);
+    g_time.ss = ((t_now.sec  >> 4) * 10) + (t_now.sec  & 0x0F);
+
+    /* ensure default display is Temperature at startup */
+    lcdValue = 0;
+    flag_update_lcd = 1;
+    logger_display_draw();
     
     // SD Card
     sd_log_init();
@@ -123,7 +157,13 @@ int main(void) {
     float temp, press, hum;
 
     // Initial time read (dummy read or RTC if present)
-    logger_rtc_read_time();
+    ds1302_time_t t;
+    ds1302_read_time(&t);
+
+    // decode BCD → BIN
+    g_time.hh = ((t.hour >> 4) * 10) + (t.hour & 0x0F);
+    g_time.mm = ((t.min  >> 4) * 10) + (t.min  & 0x0F);
+    g_time.ss = ((t.sec  >> 4) * 10) + (t.sec  & 0x0F);
 
     /* === Main Infinite Loop === */
     while(1) {
@@ -163,16 +203,29 @@ int main(void) {
             sprintf(line_buffer, "T: %s C, P: %s hPa, H: %s %%, L: %u %%\r\n", bufT, bufP, bufH, calLight);
             uart_puts(line_buffer);
             
-            /* E) Read/Update time */
-            // Since we don't have RTC working yet, let's just read what we have
-            // (or rely on the internal simulation if it was there)
-            logger_rtc_read_time();
+            /* E) Read/Update time (DS1302) */
+        {
+            ds1302_time_t t;
+            ds1302_read_time(&t);
+
+            /* BCD -> BIN conversion */
+            uint8_t hh = ((t.hour >> 4) * 10) + (t.hour & 0x0F);
+            uint8_t mm = ((t.min  >> 4) * 10) + (t.min  & 0x0F);
+            uint8_t ss = ((t.sec  >> 4) * 10) + (t.sec  & 0x0F);
+
+            /* atomic update of global time */
+            uint8_t sreg2 = SREG; cli();
+            g_time.hh = hh;
+            g_time.mm = mm;
+            g_time.ss = ss;
+            SREG = sreg2;
+        }
 
             /* F) SD card logging (if active) */
             static uint8_t last_logged_sec = 255;
-            if(sd_logging && g_time.s != last_logged_sec) {
+            if(sd_logging && g_time.ss != last_logged_sec) {
                 sd_log_append_line(g_T, g_P, g_H, g_Light);
-                last_logged_sec = g_time.s;
+                last_logged_sec = g_time.ss;
             }
 
             /* G) Request LCD redraw with new data */

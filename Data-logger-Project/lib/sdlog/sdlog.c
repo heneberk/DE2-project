@@ -13,6 +13,7 @@
 
 #include <uart.h>   /* for debug prints (uart_puts) */
 #include "loggerControl.h"
+#include "ds1302.h"
 
 /* Module state */
 volatile uint8_t flag_sd_toggle = 0;       /* set by encoder code to request start/stop */
@@ -39,9 +40,9 @@ static void dbg_print(const char *s)
 static void format_timestamp(char *buf, size_t len)
 {
     snprintf(buf, len, "%02u:%02u:%02u",
-             (unsigned)g_time.h,
-             (unsigned)g_time.m,
-             (unsigned)g_time.s);
+             (unsigned)g_time.hh,
+             (unsigned)g_time.mm,
+             (unsigned)g_time.ss);
 }
 
 /* Initialize module (optional) */
@@ -113,8 +114,8 @@ int sd_log_start(void)
 
     char fname[20];
     snprintf(fname, sizeof(fname), "%02u%02u_LOG.TXT",
-            (unsigned)g_time.h,
-            (unsigned)g_time.m);
+            (unsigned)g_time.hh,
+            (unsigned)g_time.mm);
 
     if (sdcard_open_append(fname) != 0)
     {
