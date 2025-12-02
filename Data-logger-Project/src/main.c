@@ -23,13 +23,11 @@
 #include "bme280.h"
 #include "LightSensor.h"
 #include "loggerControl.h"
-#include "sdlog.h"
+#include "sdlog.h"      // Updated SD logging module
 #include "lcd_i2c.h"
 #include "ds1302.h"
 #include "timer.h"
-
-/* Utilities */
-#include "utils.h"  /* Includes the I2C scan function */
+#include "utils.h"
 
 /* --- Configuration --- */
 #define SAMPLE_PERIOD_MS 1000UL  /* Data logging interval in ms */
@@ -40,9 +38,6 @@ volatile float g_P = 0.0f;
 volatile float g_H = 0.0f;
 volatile uint16_t g_Light = 0;
 volatile rtc_time_t g_time = {0, 0, 0};
-
-/* External flags */
-extern volatile uint8_t flag_sd_toggle; 
 
 /* --- System Time (Millis) --- */
 volatile uint32_t g_millis = 0;
@@ -100,8 +95,10 @@ int main(void) {
     ds1302_init();
     uart_puts("RTC: Initialized.\r\n");
 
-    /* OPTIONAL: Run once to set time, then comment out. 
-       Values taken from your attached file. */
+    /* -----------------------------------------------------------
+     * OPTIONAL: Run once to set time, then comment out. 
+     * Values example: 13:39:00, 1.1.2024
+     * ----------------------------------------------------------- */
     /*
     ds1302_time_t t_setup;
     t_setup.sec = 0;
@@ -114,6 +111,7 @@ int main(void) {
     ds1302_set_time(&t_setup);
     uart_puts("Time set!\r\n");
     */
+    /* ----------------------------------------------------------- */
 
     // Initial time read
     sys_update_time();
@@ -124,7 +122,7 @@ int main(void) {
     flag_update_lcd = 1;
     logger_display_draw();
     
-    // SD Card
+    // SD Card Init (Internal flags only)
     sd_log_init();
 
     // Timer setup & Interrupts enable
@@ -133,7 +131,6 @@ int main(void) {
 
     uart_puts("--- System Boot Complete ---\r\n");
     
-    // Helper function from utils.h
     i2c_scan();
 
     /* --- 3. Sensor Initialization --- */
@@ -196,27 +193,32 @@ int main(void) {
             sys_update_time();
 
             // E) Data Logging to SD
-            static uint8_t last_logged_sec = 255;
-            if(sd_logging && g_time.ss != last_logged_sec) {
+            // LOGIKA: Pokud je zapnuto logování, zapíšeme data.
+            // Zápis proběhne přesně v okamžiku měření (každých 1000 ms).
+            // Data se v souboru řadí pod sebe díky funkci append_line v sdlog.c.
+            if(sd_logging) {
                 sd_log_append_line(g_T, g_P, g_H, g_Light);
-                last_logged_sec = g_time.ss;
             }
 
             // F) Request UI Refresh
             flag_update_lcd = 1;
         }
 
-        // -- TASK 4: SD Control Logic --
+        // -- TASK 4: SD Control Logic (Triggered by Encoder Button) --
         if(flag_sd_toggle) {
             flag_sd_toggle = 0;
             
             if(!sd_logging) {
-                uart_puts("CMD: SD Log START\r\n");
-                sd_log_start();
+                // User requested START
+                if (sd_log_start() != 0) {
+                    uart_puts("ERR: SD Start failed\r\n");
+                    // Optionally visual feedback on LCD here
+                }
             } else {
-                uart_puts("CMD: SD Log STOP\r\n");
+                // User requested STOP
                 sd_log_stop();
             }
+            // Update LCD to show/hide '*' icon
             flag_update_lcd = 1;
         }
     }
