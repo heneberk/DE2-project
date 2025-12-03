@@ -7,7 +7,7 @@
 * Martin Zatloukal (responsible for coding sensors & data logging & RTC implementation & Python visualisation scripts)
 
 ### Abstract
-This project focuses on creating a portable environmental data logger implemented on an Arduino UNO board using the toolchains provided by PlatformIO. The data logger displays the measured environmental data (temperature, humidity, barometric pressure and light) on a display. By pressing an encoder button, the data logger starts collecting the data to an SD card, which can then be visualised by a Python script on a computer. The data logger also has a red and green LED that blink upon runtime to indicate whether the environmental data in the room fall within optimal ranges of values (eg. humidity 35-70 %)
+This project focuses on creating a portable environmental data logger implemented on an Arduino UNO board using the toolchains provided by PlatformIO. The data logger displays the measured environmental data (temperature, humidity, barometric pressure and light) on a display. By pressing an encoder button, the data logger starts collecting the data to an SD card, which can then be visualised by a Python script on a computer. The SD card data logging uses the Petit FAT File System Module, a lightweight subset of FatFs written in ANSI C.
 
 [**Video demonstration of our project**](add link here later)
 
@@ -33,7 +33,10 @@ This project focuses on creating a portable environmental data logger implemente
 * SD Card module
   - used for connecting SD card
 
-### Pinout Configuration
+## Components schematics
+![Components schematics](images/Components_schematics.png "Components schematics") add here TODAY
+
+## Pinout Configuration
 
 | Interface Group | Pin Name | Arduino Pin | AVR Port | Connected Components |
 | :--- | :--- | :--- | :--- | :--- |
@@ -53,14 +56,14 @@ This project focuses on creating a portable environmental data logger implemente
 
 ## Software design
 
-- [ ] Block diagram
-- [ ] flowcharts
-
 ### Block diagram
 ![Block diagram](images/Block_diagram.png "Block_diagram") add here TODAY
 
 ### Flowchart
 ![Flowchart](images/Flowchart.png "Flowchart") add here TODAY
+
+## Project demonstration
+TODAY -- add here photos of the project running, comment whats happening and then display the graphs in computer, also add photos.
 
 ## References
 
