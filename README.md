@@ -64,6 +64,7 @@ This project focuses on creating a portable environmental data logger implemente
 
 ## Doxygen Documentation
 placeholder for Martin ^^
+[Open Documentation](https://heneberk.github.io/de2-project/Doxygen/html/index.html)
 
 ## Project demonstration
 
