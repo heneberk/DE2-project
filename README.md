@@ -57,7 +57,7 @@ This project focuses on creating a portable environmental data logger implemente
 ## Software design
 
 ### Block diagram
-![Block diagram](images/Block_diagram.png "Block_diagram") add here TODAY
+![Block diagram](images/Block_diagram.png "Block_diagram")
 
 ### Flowchart
 ![Flowchart](images/Flowchart.png "Flowchart") add here TODAY
