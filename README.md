@@ -65,10 +65,18 @@ This project focuses on creating a portable environmental data logger implemente
 ## Project demonstration
 
 ### Various units on LCD
+
 ![Display - Temperature](images/Display_TEMP.jpg "Display - Temperature")
+
 ![Display - Pressure](images/Display_PRESS.jpg "Display - Pressure")
+
 ![Display - Humidity](images/Display_HUMID.jpg "Display - Humidity")
-![Display - Light](images/Display_LIGHT.jpg "Display - Light")
+
+![Display - Light](images/Display_LIGHT.jpg "Display - Light")¨
+
+### LCD during logging (marked by a star symbol *)
+
+![Display - Logging](images/Display_LOGGING.jpg "Display - Logging")
 
 ## References
 
