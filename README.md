@@ -11,7 +11,7 @@ This project focuses on creating a portable environmental data logger implemente
 
 [**Video demonstration of our project**](add link here later)
 
-![Project poster](images/poster.png "A3 project poster")
+![Project poster](images/Data-logger-Poster.png "A3 project poster")
 
 ## List of hardware components
 
@@ -60,7 +60,7 @@ This project focuses on creating a portable environmental data logger implemente
 ![Block diagram](images/Block_diagram.png "Block_diagram")
 
 ### Flowchart
-![Flowchart](images/Flowchart.png "Flowchart")
+![Flowchart](images/Data-logger-Flowchart.png "Flowchart")
 
 ## Doxygen Documentation
 
