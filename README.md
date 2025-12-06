@@ -2,16 +2,16 @@
 
 ### Team members
 
-* Matyas Heneberk (responsible for coding sensors & creating block diagrams, flowcharts & poster creation)
-* Vojtěch Šafařík (responsible for data logging & RTC implementation & Python visualisation script & managing GitHub repository)
-* Martin Zatloukal (responsible for coding sensors & data logging & RTC implementation & Python visualisation scripts)
+* Matyas Heneberk (responsible for lightsensor code & creating block diagram & video editing & poster creation)
+* Vojtěch Šafařík (responsible for data logging & RTC implementation & Python visualisation script & creating the flowchart & managing GitHub repository)
+* Martin Zatloukal (responsible for BME280 code & data logging & RTC implementation & Doxygen documentation & Python visualisation scripts)
 
 ### Abstract
 This project focuses on creating a portable environmental data logger implemented on an Arduino UNO board using the toolchains provided by PlatformIO. The data logger displays the measured environmental data (temperature, humidity, barometric pressure and light) on a display. By pressing an encoder button, the data logger starts collecting the data to an SD card, which can then be visualised by a Python script on a computer. The SD card data logging uses the Petit FAT File System Module, a lightweight subset of FatFs written in ANSI C.
 
 [**Video demonstration of our project**](add link here later)
 
-![Project poster](images/poster.png "A3 project poster") add here later
+![Project poster](images/poster.png "A3 project poster")
 
 ## List of hardware components
 
@@ -34,7 +34,7 @@ This project focuses on creating a portable environmental data logger implemente
   - used for connecting SD card
 
 ## Components schematics
-![Components schematics](images/Components_schematics.png "Components schematics") add here TODAY
+![Components schematics](images/Components_schematics.png "Components schematics") add here or remove
 
 ## Pinout Configuration
 
@@ -60,10 +60,10 @@ This project focuses on creating a portable environmental data logger implemente
 ![Block diagram](images/Block_diagram.png "Block_diagram")
 
 ### Flowchart
-![Flowchart](images/Flowchart.png "Flowchart") add here TODAY
+![Flowchart](images/Flowchart.png "Flowchart")
 
 ## Doxygen Documentation
-placeholder for Martin ^^
+
 [Open Documentation](https://heneberk.github.io/DE2-project/Doxygen/html/index.html)
 
 ## Project demonstration
